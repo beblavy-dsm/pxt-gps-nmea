@@ -1,4 +1,5 @@
 
+
 /**
  * NMEA GPS parsing extension (Python-compatible)
  */
