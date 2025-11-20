@@ -1,5 +1,6 @@
+
 /**
- * NMEA GPS parsing extension
+ * NMEA GPS parsing extension (Python-compatible)
  */
 //% color=#0fbc11 icon="\uf279" block="GPS NMEA"
 namespace GPS {
@@ -22,45 +23,48 @@ namespace GPS {
     let satsInView = 0
 
     /**
-     * Takes one line of NMEA string such as $GPRMC, $GPGGA, $GPGSA, $GPGSV, $GPVTG
+     * Parse one NMEA sentence ($GPRMC, $GPGGA, $GPGSA, $GPGSV, $GPVTG...)
      */
     //% block="parse NMEA sentence %data"
+    //% group="Parsing"
     export function parseSentence(data: string): void {
         if (!data) return
-        // basic trim (in case \r\n)
-        lastSentence = data
-        if (lastSentence.length > 0 && lastSentence.charAt(lastSentence.length - 1) == '\n') {
-            lastSentence = lastSentence.substr(0, lastSentence.length - 1)
-        }
-        if (lastSentence.length > 0 && lastSentence.charAt(lastSentence.length - 1) == '\r') {
-            lastSentence = lastSentence.substr(0, lastSentence.length - 1)
-        }
 
-        if (startsWith(lastSentence, "$GPRMC") || startsWith(lastSentence, "$GNRMC")) {
-            parseRMC(lastSentence)
-        } else if (startsWith(lastSentence, "$GPGGA") || startsWith(lastSentence, "$GNGGA")) {
-            parseGGA(lastSentence)
-        } else if (startsWith(lastSentence, "$GPGSA") || startsWith(lastSentence, "$GNGSA")) {
-            parseGSA(lastSentence)
-        } else if (startsWith(lastSentence, "$GPGSV") || startsWith(lastSentence, "$GNGSV")) {
-            parseGSV(lastSentence)
-        } else if (startsWith(lastSentence, "$GPVTG") || startsWith(lastSentence, "$GNVTG")) {
-            parseVTG(lastSentence)
+        // trim CR/LF manually (Python-friendly)
+        let s = data
+        let l = s.length
+        while (l > 0 && (s.charAt(l - 1) == '\n' || s.charAt(l - 1) == '\r')) {
+            s = s.substring(0, l - 1)
+            l = s.length
+        }
+        lastSentence = s
+
+        if (startsWith(s, "$GPRMC") || startsWith(s, "$GNRMC")) {
+            parseRMC(s)
+        } else if (startsWith(s, "$GPGGA") || startsWith(s, "$GNGGA")) {
+            parseGGA(s)
+        } else if (startsWith(s, "$GPGSA") || startsWith(s, "$GNGSA")) {
+            parseGSA(s)
+        } else if (startsWith(s, "$GPGSV") || startsWith(s, "$GNGSV")) {
+            parseGSV(s)
+        } else if (startsWith(s, "$GPVTG") || startsWith(s, "$GNVTG")) {
+            parseVTG(s)
         }
     }
 
     function startsWith(text: string, prefix: string): boolean {
+        if (!text) return false
         if (text.length < prefix.length) return false
-        return text.substr(0, prefix.length) == prefix
+        return text.substring(0, prefix.length) == prefix
     }
 
-    function parseRMC(sentence: string) {
+    function parseRMC(sentence: string): void {
         // $GPRMC,hhmmss.sss,A,llll.ll,a,yyyyy.yy,a,speed,course,date,...
         let p = sentence.split(",")
         if (p.length < 10) return
 
         timeUTC = p[1]
-        valid = p[2] == "A"  // A = valid, V = void
+        valid = (p[2] == "A")  // A = valid, V = void
 
         latitude = convertNMEACoordinate(p[3], p[4])
         longitude = convertNMEACoordinate(p[5], p[6])
@@ -70,7 +74,7 @@ namespace GPS {
         dateUTC = p[9]
     }
 
-    function parseGGA(sentence: string) {
+    function parseGGA(sentence: string): void {
         // $GPGGA,hhmmss,lat,N,lon,E,quality,...
         let p = sentence.split(",")
         if (p.length < 7) return
@@ -84,22 +88,22 @@ namespace GPS {
         valid = quality > 0
     }
 
-    function parseGSA(sentence: string) {
+    function parseGSA(sentence: string): void {
         // $GPGSA,mode,fixType,sv1,sv2,...,PDOP,HDOP,VDOP
         let p = sentence.split(",")
         if (p.length < 17) return
 
         fixType = parseIntSafe(p[2])
 
-        // Most common layout: PDOP = p[15], HDOP = p[16], VDOP = p[17] (may include checksum)
-        pdop = parseFloatSafe(p[15])
+        // PDOP = p[15], HDOP = p[16], VDOP = p[17] (VDOP may include checksum)
+        pdop = parseFloatSafe(stripChecksum(p[15]))
         hdop = parseFloatSafe(stripChecksum(p[16]))
         if (p.length > 17) {
             vdop = parseFloatSafe(stripChecksum(p[17]))
         }
     }
 
-    function parseGSV(sentence: string) {
+    function parseGSV(sentence: string): void {
         // $GPGSV,totalMsgs,msgNum,satsInView,...
         let p = sentence.split(",")
         if (p.length < 4) return
@@ -107,7 +111,7 @@ namespace GPS {
         satsInView = parseIntSafe(p[3])
     }
 
-    function parseVTG(sentence: string) {
+    function parseVTG(sentence: string): void {
         // $GPVTG,course,T,,M,speedKnots,N,speedKmh,K*CS
         let p = sentence.split(",")
         if (p.length < 9) return
@@ -118,17 +122,23 @@ namespace GPS {
 
     // Convert "ddmm.mmmm" or "dddmm.mmmm" + direction → decimal degrees
     function convertNMEACoordinate(value: string, dir: string): number {
-        if (!value || value.length < 3) return 0
+        if (!value) return 0
+        if (value.length < 3) return 0
 
         let dot = value.indexOf(".")
         if (dot < 0) return 0
 
         // latitude usually 2 deg digits, longitude 3
-        let degLen = dot == 4 ? 2 : 3 // e.g. 4807.038 -> 48, 01131.000 -> 011
+        let degLen = 2
+        if (dot == 5) {
+            // example: 12319.123
+            degLen = 3
+        }
+
         if (value.length <= degLen) return 0
 
-        let degStr = value.substr(0, degLen)
-        let minStr = value.substr(degLen)
+        let degStr = value.substring(0, degLen)
+        let minStr = value.substring(degLen)
 
         let deg = parseFloatSafe(degStr)
         let min = parseFloatSafe(minStr)
@@ -142,21 +152,22 @@ namespace GPS {
     function stripChecksum(s: string): string {
         if (!s) return ""
         let star = s.indexOf("*")
-        if (star >= 0) return s.substr(0, star)
+        if (star >= 0) return s.substring(0, star)
         return s
     }
 
     function parseFloatSafe(s: string): number {
         if (!s) return 0
-        let r = parseFloat(s)
-        if (isNaN(r)) return 0
+        let r = +s
+        // avoid isNaN (Python-unsafe); NaN is the only value not equal to itself
+        if (r != r) return 0
         return r
     }
 
     function parseIntSafe(s: string): number {
         if (!s) return 0
         let r = parseInt(s)
-        if (isNaN(r)) return 0
+        if (r != r) return 0
         return r
     }
 
@@ -166,6 +177,7 @@ namespace GPS {
      * Returns latitude in decimal degrees
      */
     //% block="latitude (deg)"
+    //% group="Data"
     export function latitudeDec(): number {
         return latitude
     }
@@ -174,6 +186,7 @@ namespace GPS {
      * Returns longitude in decimal degrees
      */
     //% block="longitude (deg)"
+    //% group="Data"
     export function longitudeDec(): number {
         return longitude
     }
@@ -182,14 +195,16 @@ namespace GPS {
      * Returns UTC time (hhmmss.sss)
      */
     //% block="UTC time"
+    //% group="Data"
     export function utcTime(): string {
         return timeUTC
     }
 
     /**
-     * Returns UTC date (ddmmyy)
+     * Returns UTC date (ddmmyy)"
      */
     //% block="UTC date"
+    //% group="Data"
     export function utcDate(): string {
         return dateUTC
     }
@@ -198,6 +213,7 @@ namespace GPS {
      * Returns speed in knots
      */
     //% block="speed (knots)"
+    //% group="Data"
     export function speedKn(): number {
         return speedKnots
     }
@@ -206,6 +222,7 @@ namespace GPS {
      * Returns course over ground in degrees
      */
     //% block="course (deg)"
+    //% group="Data"
     export function course(): number {
         return courseDeg
     }
@@ -214,6 +231,7 @@ namespace GPS {
      * Returns true if GPS fix is valid
      */
     //% block="GPS fix valid"
+    //% group="Data"
     export function isValid(): boolean {
         return valid
     }
@@ -222,6 +240,7 @@ namespace GPS {
      * Returns fix type from GSA (0/1 = no fix, 2 = 2D, 3 = 3D)
      */
     //% block="fix type (GSA)"
+    //% group="GSA"
     export function gsaFixType(): number {
         return fixType
     }
@@ -230,6 +249,7 @@ namespace GPS {
      * PDOP from GSA sentence
      */
     //% block="PDOP"
+    //% group="GSA"
     export function gsaPDOP(): number {
         return pdop
     }
@@ -238,6 +258,7 @@ namespace GPS {
      * HDOP from GSA sentence
      */
     //% block="HDOP"
+    //% group="GSA"
     export function gsaHDOP(): number {
         return hdop
     }
@@ -246,6 +267,7 @@ namespace GPS {
      * VDOP from GSA sentence
      */
     //% block="VDOP"
+    //% group="GSA"
     export function gsaVDOP(): number {
         return vdop
     }
@@ -254,6 +276,7 @@ namespace GPS {
      * Satellites in view from GSV sentence
      */
     //% block="satellites in view"
+    //% group="GSV"
     export function satellitesInView(): number {
         return satsInView
     }
@@ -262,6 +285,7 @@ namespace GPS {
      * Returns the last raw NMEA sentence that was parsed
      */
     //% block="last NMEA sentence"
+    //% group="Parsing"
     export function lastRawSentence(): string {
         return lastSentence
     }

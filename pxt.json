@@ -1,10 +1,8 @@
 {
     "name": "GPS NMEA",
-    "description": "",
+    "description": "NMEA GPS parser for micro:bit (RMC, GGA, GSA, GSV, VTG)",
     "dependencies": {
-        "core": "*",
-        "radio": "*",
-        "microphone": "*"
+        "core": "*"
     },
     "files": [
         "main.blocks",
