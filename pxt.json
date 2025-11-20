@@ -1,5 +1,6 @@
 {
     "name": "GPS NMEA",
+    "version": "1.0.0",
     "description": "NMEA GPS parser for micro:bit (RMC, GGA, GSA, GSV, VTG)",
     "dependencies": {
         "core": "*"
