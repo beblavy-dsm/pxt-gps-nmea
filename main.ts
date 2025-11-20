@@ -34,7 +34,7 @@ namespace GPS {
         let s = data
         let l = s.length
         while (l > 0 && (s.charAt(l - 1) == '\n' || s.charAt(l - 1) == '\r')) {
-            s = s.substring(0, l - 1)
+            s = s.substr(0, l - 1)
             l = s.length
         }
         lastSentence = s
@@ -55,7 +55,7 @@ namespace GPS {
     function startsWith(text: string, prefix: string): boolean {
         if (!text) return false
         if (text.length < prefix.length) return false
-        return text.substring(0, prefix.length) == prefix
+        return text.substr(0, prefix.length) == prefix
     }
 
     function parseRMC(sentence: string): void {
@@ -137,8 +137,8 @@ namespace GPS {
 
         if (value.length <= degLen) return 0
 
-        let degStr = value.substring(0, degLen)
-        let minStr = value.substring(degLen)
+        let degStr = value.substr(0, degLen)
+        let minStr = value.substr(degLen)
 
         let deg = parseFloatSafe(degStr)
         let min = parseFloatSafe(minStr)
@@ -152,7 +152,7 @@ namespace GPS {
     function stripChecksum(s: string): string {
         if (!s) return ""
         let star = s.indexOf("*")
-        if (star >= 0) return s.substring(0, star)
+        if (star >= 0) return s.substr(0, star)
         return s
     }
 
